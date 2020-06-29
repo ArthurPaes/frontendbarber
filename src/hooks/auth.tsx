@@ -1,10 +1,4 @@
-import React, {
-  createContext,
-  useCallback,
-  useState,
-  useContext,
-  useEffect,
-} from 'react';
+import React, { createContext, useCallback, useState, useContext } from 'react';
 import api from '../services/api';
 
 interface User {
@@ -41,8 +35,6 @@ const AuthProvider: React.FC = ({ children }) => {
     if (token && user) {
       api.defaults.headers.authorization = `Bearer ${token}`;
 
-      setupInvalidSessionInterceptor();
-
       return { token, user: JSON.parse(user) };
     }
 
@@ -56,42 +48,21 @@ const AuthProvider: React.FC = ({ children }) => {
     setData({} as AuthState);
   }, []);
 
-  const setupInvalidSessionInterceptor = useCallback(() => {
-    api.interceptors.response.use(
-      response => {
-        return response;
-      },
-      error => {
-        const { response } = error;
+  const signIn = useCallback(async ({ email, password }) => {
+    const response = await api.post('sessions', {
+      email,
+      password,
+    });
 
-        if (response.data.message === 'Invalid JWT token') {
-          signOut();
-        }
+    const { token, user } = response.data;
 
-        return Promise.reject(error);
-      },
-    );
-  }, [signOut]);
+    localStorage.setItem('@GoBarber:token', token);
+    localStorage.setItem('@GoBarber:user', JSON.stringify(user));
 
-  const signIn = useCallback(
-    async ({ email, password }) => {
-      const response = await api.post('sessions', {
-        email,
-        password,
-      });
+    api.defaults.headers.authorization = `Bearer ${token}`;
 
-      const { token, user } = response.data;
-
-      localStorage.setItem('@GoBarber:token', token);
-      localStorage.setItem('@GoBarber:user', JSON.stringify(user));
-
-      api.defaults.headers.authorization = `Bearer ${token}`;
-
-      setupInvalidSessionInterceptor();
-      setData({ token, user });
-    },
-    [setupInvalidSessionInterceptor],
-  );
+    setData({ token, user });
+  }, []);
 
   const updateUser = useCallback(
     (user: User) => {
@@ -116,10 +87,6 @@ const AuthProvider: React.FC = ({ children }) => {
 
 function useAuth(): AuthContextData {
   const context = useContext(AuthContext);
-
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
 
   return context;
 }
